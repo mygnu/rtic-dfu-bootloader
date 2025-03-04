@@ -1,0 +1,59 @@
+[package]
+name = "rtic-dfu-bootloader"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+embedded-hal = "1.0.0"
+panic-halt = "1.0.0"
+rtic = { version = "2.1", features = ["thumbv7-backend"] }
+rtic-monotonics = { version = "2.0", features = [ "cortex-m-systick" ]}
+static_cell = "2.1.0"
+stm32f1xx-hal = {version = "0.10", features = ["rt", "stm32f103", "medium", "stm32-usbd"] }
+usb-device = "0.3.2"
+usbd-dfu = "0.4"
+defmt = { version = "0.3", optional = true }
+defmt-rtt = {version = "0.4", optional = true}
+panic-probe = { version = "0.3", optional = true, features = ["print-defmt"] }
+# stm32-usbd = "0.7"
+
+[patch.crates-io]
+# need a version that supports usb-device 0.3
+stm32-usbd = { git = "https://github.com/stm32-rs/stm32-usbd.git", rev = "ca23b91d347438d322359f9ff7bc9d8e592f82b8" }
+
+[features]
+defmt = ["dep:defmt", "dep:defmt-rtt", "dep:panic-probe"]
+
+[[bin]]
+name = "rtic-dfu-bootloader"
+path = "src/main.rs"
+test = false
+doctest = false
+bench = false
+
+[lib]
+name = "rdb_lib"
+path = "src/lib.rs"
+test = false
+doctest = false
+bench = false
+
+# cargo build/run --release
+[profile.release]
+lto = true
+debug = false
+panic = "abort"
+opt-level = 'z'
+codegen-units = 1
+incremental = false
+overflow-checks = false
+debug-assertions = false
+
+
+[profile.dev]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+debug = true

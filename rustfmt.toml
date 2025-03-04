@@ -1,0 +1,9 @@
+# use `cargo +nightly fmt`
+max_width = 80
+edition = "2024"
+
+wrap_comments = true
+reorder_imports = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+reorder_modules = true
