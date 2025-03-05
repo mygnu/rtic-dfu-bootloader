@@ -138,6 +138,8 @@ mod app {
             if offset as usize >= FLASH_SIZE_BYTES - length {
                 return Err(DFUMemError::Address);
             }
+
+            // not ideal but we cant have a mutable reference to self.buffer
             let mut data = [0u8; 128];
             data[..length].copy_from_slice(&self.buffer[..length]);
 
