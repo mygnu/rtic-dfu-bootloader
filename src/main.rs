@@ -3,30 +3,24 @@
 
 #[rtic::app(device = stm32f1xx_hal::pac)]
 mod app {
-    use core::{ptr::addr_of_mut, str};
     #[cfg(not(feature = "defmt"))]
     use panic_halt as _;
     #[cfg(feature = "defmt")]
     use rdb_lib::feature_defmt as _;
     use rdb_lib::{
-        BOOTLOADER_SIZE_BYTES, FLASH_SIZE, FLASH_SIZE_BYTES, FW_ADDRESS,
-        KEY_STAY_IN_BOOT,
+        BOOTLOADER_SIZE_BYTES, DfuCtl, FLASH_SIZE, FLASH_SIZE_BYTES, USB_PID,
+        USB_VID,
     };
     use rtic_monotonics::systick::prelude::*;
     use stm32f1xx_hal::flash;
     use stm32f1xx_hal::gpio::{Output, PC13, PinState, PushPull};
-    use stm32f1xx_hal::pac::GPIOB;
-    use stm32f1xx_hal::pac::RCC;
+    use stm32f1xx_hal::pac::{GPIOB, RCC};
     use stm32f1xx_hal::prelude::*;
     use stm32f1xx_hal::usb::{Peripheral, UsbBus, UsbBusType};
     use usb_device::device::{
         StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid,
     };
     use usbd_dfu::{DFUClass, DFUManifestationError, DFUMemError, DFUMemIO};
-
-    fn controller_reset() -> ! {
-        cortex_m::peripheral::SCB::sys_reset();
-    }
 
     pub struct STM32Mem {
         flash: flash::Parts,
@@ -138,6 +132,8 @@ mod app {
             if offset as usize >= FLASH_SIZE_BYTES - length {
                 return Err(DFUMemError::Address);
             }
+
+            // not ideal but we cant have a mutable reference to self.buffer
             let mut data = [0u8; 128];
             data[..length].copy_from_slice(&self.buffer[..length]);
 
@@ -159,12 +155,12 @@ mod app {
         }
 
         fn manifestation(&mut self) -> Result<(), DFUManifestationError> {
-            controller_reset();
+            DfuCtl::controller_reset();
         }
     }
 
-    /// Return device serial based on U_ID registers.
-    fn read_serial(serial: &mut [u8; 8]) {
+    /// Read to buffer, device serial based on U_ID registers.
+    fn read_serial(buff: &mut [u8; 8]) {
         let u_id0 = 0x1FFF_F7E8 as *const u32;
         let u_id1 = 0x1FFF_F7EC as *const u32;
 
@@ -178,105 +174,50 @@ mod app {
             }
         }
 
-        for (i, d) in serial.iter_mut().enumerate() {
+        for (i, d) in buff.iter_mut().enumerate() {
             *d = hex(((sn >> (i * 4)) & 0xf) as u8)
         }
     }
 
-    fn magic_mut_ptr() -> *mut u32 {
-        unsafe extern "C" {
-            #[link_name = "_dfu_magic"]
-            static mut magic: u32;
-        }
-        addr_of_mut!(magic)
-    }
+    struct Boot1Pin;
 
-    /// Read magic value to determine if
-    /// device must enter DFU mode.
-    fn get_uninit_val() -> u32 {
-        unsafe { magic_mut_ptr().read_volatile() }
-    }
+    impl Boot1Pin {
+        /// Check if DFU force external condition.
+        /// Check BOOT1 jumper position.
+        /// initialize minimal peripherals to check if DFU mode should be
+        /// entered.
+        /// then reset the peripherals to default values.
+        fn is_not_high() -> bool {
+            unsafe {
+                // enable PWR, AFIO, GPIOB
+                (*RCC::ptr()).apb1enr.modify(|_, w| w.pwren().set_bit());
+                (*RCC::ptr())
+                    .apb2enr
+                    .modify(|_, w| w.afioen().set_bit().iopben().set_bit());
 
-    /// Erase magic value in RAM so that
-    /// DFU would be triggered only once.
-    fn clear_uninit_val() {
-        unsafe { magic_mut_ptr().write_volatile(0) };
-    }
+                // P2 - Input, Floating
+                (*GPIOB::ptr())
+                    .crl
+                    .modify(|_, w| w.mode2().input().cnf2().open_drain());
+            }
 
-    /// Return true if "uninit" area of RAM has a
-    /// special value. Used to force DFU mode from
-    /// a main firmware programmatically.
-    fn dfu_ram_requested() -> bool {
-        let stay = get_uninit_val() == KEY_STAY_IN_BOOT;
-        if stay {
-            clear_uninit_val();
-        }
-        stay
-    }
+            cortex_m::asm::delay(100);
 
-    /// Check if DFU force external condition.
-    /// Check BOOT1 jumper position.
-    fn dfu_enforced() -> bool {
-        // check BOOT1, PB2 state
-        let enforced =
-            unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_set() };
-        #[cfg(feature = "defmt")]
-        defmt::info!("Checking BOOT1 {}", enforced);
-        enforced
-    }
+            // check BOOT1, PB2 state
+            let not_enforced =
+                unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
+            #[cfg(feature = "defmt")]
+            defmt::info!("Checking BOOT1 {}", enforced);
 
-    fn minimal_init() {
-        unsafe {
-            // enable PWR, AFIO, GPIOB
-            (*RCC::ptr()).apb1enr.modify(|_, w| w.pwren().set_bit());
-            (*RCC::ptr())
-                .apb2enr
-                .modify(|_, w| w.afioen().set_bit().iopben().set_bit());
-        }
-
-        unsafe {
-            // P2 - Input, Floating
-            (*GPIOB::ptr())
-                .crl
-                .modify(|_, w| w.mode2().input().cnf2().open_drain());
-        }
-
-        cortex_m::asm::delay(100);
-    }
-
-    /// Reset registers that were used for a
-    /// check if DFU mode must be enabled to a
-    /// default values before starting main firmware.
-    fn quick_uninit() {
-        unsafe {
-            (*GPIOB::ptr()).crl.reset();
-            (*RCC::ptr()).apb1enr.reset();
-            (*RCC::ptr()).apb2enr.reset();
-        }
-    }
-
-    /// Initialize stack pointer and jump to a main firmware.
-    #[inline(never)]
-    fn jump_to_app() -> ! {
-        let vt = FW_ADDRESS as *const u32;
-
-        cortex_m::interrupt::disable();
-
-        unsafe {
-            let periph = cortex_m::peripheral::Peripherals::steal();
-            periph.SCB.vtor.write(vt as u32);
-            cortex_m::asm::bootload(vt);
-        }
-    }
-
-    /// Check if FW looks OK and jump to it, or return.
-    fn try_start_app() {
-        #[cfg(feature = "defmt")]
-        defmt::info!("Trying to start app");
-        let sp = unsafe { (FW_ADDRESS as *const u32).read() };
-        if sp & 0xfffe_0000 == 0x2000_0000 {
-            quick_uninit();
-            jump_to_app();
+            // Reset registers that were used for a
+            // check if DFU mode must be enabled to a
+            // default values before starting main firmware.
+            unsafe {
+                (*GPIOB::ptr()).crl.reset();
+                (*RCC::ptr()).apb1enr.reset();
+                (*RCC::ptr()).apb2enr.reset();
+            }
+            not_enforced
         }
     }
 
@@ -295,12 +236,8 @@ mod app {
 
     #[init(local = [usb_bus: Option<usb_device::bus::UsbBusAllocator<UsbBusType>> = None, serial_number: [u8; 8] = [0; 8]])]
     fn init(mut cx: init::Context) -> (Shared, Local) {
-        if !dfu_ram_requested() {
-            minimal_init();
-            if !dfu_enforced() {
-                try_start_app();
-            }
-            quick_uninit();
+        if DfuCtl::should_enter_app() && Boot1Pin::is_not_high() {
+            DfuCtl::try_jump_to_app();
         }
 
         let dp = cx.device;
@@ -335,12 +272,12 @@ mod app {
         let usb_dm = gpioa.pa11;
         let usb_dp = usb_dp.into_floating_input(&mut gpioa.crh);
 
-        let usb_periph = Peripheral {
+        let usb_peripheral = Peripheral {
             usb: dp.USB,
             pin_dm: usb_dm,
             pin_dp: usb_dp,
         };
-        cx.local.usb_bus.replace(UsbBus::new(usb_periph));
+        cx.local.usb_bus.replace(UsbBus::new(usb_peripheral));
 
         let stm32mem = STM32Mem::new(flash);
 
@@ -351,13 +288,13 @@ mod app {
 
         let usb_device = UsbDeviceBuilder::new(
             cx.local.usb_bus.as_ref().unwrap_or_else(|| panic!()),
-            UsbVidPid(0x1209, 0x2444),
+            UsbVidPid(USB_VID, USB_PID),
         )
         .strings(&[StringDescriptors::default()
             .manufacturer("Hematite Engineering")
             .product("USB DFU Bootloader")
             .serial_number(unsafe {
-                str::from_utf8_unchecked(cx.local.serial_number)
+                core::str::from_utf8_unchecked(cx.local.serial_number)
             })])
         .unwrap_or_else(|_| panic!())
         .device_release(0x0200)

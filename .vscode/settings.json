@@ -1,3 +1,29 @@
 {
-  "cSpell.words": ["dfu"]
+  "cSpell.words": [
+    "acr",
+    "AFIO",
+    "afioen",
+    "apb",
+    "cnf",
+    "crl",
+    "dfu",
+    "enr",
+    "euninit",
+    "GPIOB",
+    "gpioc",
+    "hclk",
+    "hse",
+    "idr",
+    "iopben",
+    "NOLOAD",
+    "pclk",
+    "PWR",
+    "pwren",
+    "rdb",
+    "SCB",
+    "suninit",
+    "SYST",
+    "UNINITDFU",
+    "vtor"
+  ]
 }

@@ -1,0 +1,4 @@
+# for linux save this file in /etc/udev/rules.d/70-bootloader.rules
+# and run `udevadm control --reload && udevadm trigger`
+
+ATTRS{idVendor}=="1209", ATTRS{idProduct}=="2444", TAG+="uaccess"
