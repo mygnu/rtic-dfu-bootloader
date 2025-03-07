@@ -6,8 +6,8 @@ mod app {
     #[cfg(not(feature = "defmt"))]
     use panic_halt as _;
     #[cfg(feature = "defmt")]
-    use rdb_lib::feature_defmt as _;
-    use rdb_lib::{
+    use rtic_dfu_bootloader::feature_defmt as _;
+    use rtic_dfu_bootloader::{
         BOOTLOADER_SIZE_BYTES, DfuCtl, FLASH_SIZE, FLASH_SIZE_BYTES, USB_PID,
         USB_VID,
     };
@@ -41,6 +41,7 @@ mod app {
     }
 
     impl DFUMemIO for STM32Mem {
+        // adjust the following values to match the flash size of the target
         const INITIAL_ADDRESS_POINTER: u32 = flash::FLASH_START;
         const PROGRAM_TIME_MS: u32 = 7; // time it takes to program 128 bytes
         const ERASE_TIME_MS: u32 = 50;
@@ -207,7 +208,7 @@ mod app {
             let not_enforced =
                 unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
             #[cfg(feature = "defmt")]
-            defmt::info!("Checking BOOT1 {}", enforced);
+            defmt::info!("BOOT1 pin is set to {}", !not_enforced);
 
             // Reset registers that were used for a
             // check if DFU mode must be enabled to a

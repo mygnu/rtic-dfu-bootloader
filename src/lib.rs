@@ -23,7 +23,8 @@ pub const FLASH_SIZE_BYTES: usize = (FLASH_SIZE as usize) * 1024;
 pub const BOOTLOADER_SIZE_BYTES: u32 = 16 * 1024; // actual size is ~12-13KB
 pub const FIRMWARE_ADDRESS: u32 = 0x0800_4000;
 
-// USB VID/PID
+// USB VID/PID for the bootloader
+// see https://github.com/pidcodes/pidcodes.github.com/pull/1027
 pub const USB_VID: u16 = 0x1209;
 pub const USB_PID: u16 = 0x2444;
 
@@ -108,8 +109,9 @@ impl DfuCtl {
         };
     }
 
-    /// Reset the device to bootloader mode
-    /// can be used if you want to enter DFU mode from the application
+    /// Disables all interrupts and resets the device to bootloader mode with
+    /// key set in memory. Can be used if you want to enter DFU mode from
+    /// the application
     pub fn reset_to_bootloader() -> ! {
         cortex_m::interrupt::disable();
         Self::set_key_to_dfu_boot();
