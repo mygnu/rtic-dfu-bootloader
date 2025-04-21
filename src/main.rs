@@ -13,7 +13,7 @@ mod app {
     };
     use rtic_monotonics::systick::prelude::*;
     use stm32f1xx_hal::flash;
-    use stm32f1xx_hal::gpio::{Output, PC13, PinState, PushPull};
+    use stm32f1xx_hal::gpio::{Output, PA8, PinState, PushPull};
     use stm32f1xx_hal::pac::{GPIOB, RCC};
     use stm32f1xx_hal::prelude::*;
     use stm32f1xx_hal::usb::{Peripheral, UsbBus, UsbBusType};
@@ -229,8 +229,7 @@ mod app {
 
     #[local]
     struct Local {
-        // led: PA8<Output<PushPull>>,
-        led: PC13<Output<PushPull>>,
+        led: PA8<Output<PushPull>>,
         usb_device: UsbDevice<'static, UsbBusType>,
         usb_dfu: DFUClass<UsbBusType, STM32Mem>,
     }
@@ -246,14 +245,16 @@ mod app {
         let rcc = dp.RCC.constrain();
 
         // Setup clocks
-        let _clocks = rcc
+        let clocks = rcc
             .cfgr
-            .use_hse(8.MHz())
+            .use_hse(16.MHz())
             .hclk(72.MHz())
             .pclk1(36.MHz())
             .pclk2(72.MHz())
             .sysclk(72.MHz())
             .freeze(&mut flash.acr);
+
+        assert!(clocks.usbclk_valid());
 
         // Initialize the systick interrupt
         Mono::start(cx.core.SYST, 72_000_000); // default STM32F301 clock-rate is 36MHz
@@ -261,10 +262,9 @@ mod app {
         let mut gpioa = dp.GPIOA.split();
         // let led = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
 
-        let mut gpioc = dp.GPIOC.split();
-        let led = gpioc
-            .pc13
-            .into_push_pull_output_with_state(&mut gpioc.crh, PinState::High);
+        let led = gpioa
+            .pa8
+            .into_push_pull_output_with_state(&mut gpioa.crh, PinState::High);
 
         let mut usb_dp = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
         usb_dp.set_low();

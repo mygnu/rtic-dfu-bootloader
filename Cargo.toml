@@ -13,7 +13,6 @@ panic-halt = { version = "1.0", optional = true}
 panic-probe = { version = "0.3", optional = true, features = ["print-defmt"] }
 rtic = { version = "2.1", features = ["thumbv7-backend"] }
 rtic-monotonics = { version = "2.0", features = [ "cortex-m-systick" ]}
-static_cell = "2.1.0"
 stm32f1xx-hal = {version = "0.10", features = ["stm32f103", "medium", "stm32-usbd"] }
 usb-device = "0.3"
 usbd-dfu = "0.4"
