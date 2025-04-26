@@ -387,7 +387,7 @@ checksum = "d9369355b04d06a3780ec0f51ea2d225624db777acbc60abd8ca4832da5c1a42"
 
 [[package]]
 name = "rtic-dfu-bootloader"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "cortex-m",
  "defmt 0.3.100",
