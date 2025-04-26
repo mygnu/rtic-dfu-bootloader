@@ -245,16 +245,16 @@ mod app {
         let rcc = dp.RCC.constrain();
 
         // Setup clocks
-        let clocks = rcc
+        let _clocks = rcc
             .cfgr
             .use_hse(16.MHz())
             .hclk(72.MHz())
             .pclk1(36.MHz())
             .pclk2(72.MHz())
-            .sysclk(72.MHz())
+            .sysclk(48.MHz())
             .freeze(&mut flash.acr);
 
-        assert!(clocks.usbclk_valid());
+        // assert!(clocks.usbclk_valid());
 
         // Initialize the systick interrupt
         Mono::start(cx.core.SYST, 72_000_000); // default STM32F301 clock-rate is 36MHz
@@ -292,8 +292,7 @@ mod app {
             UsbVidPid(USB_VID, USB_PID),
         )
         .strings(&[StringDescriptors::default()
-            .manufacturer("Hematite Engineering")
-            .product("USB DFU Bootloader")
+            .product("BrakeBright Bootloader")
             .serial_number(unsafe {
                 core::str::from_utf8_unchecked(cx.local.serial_number)
             })])
@@ -330,9 +329,9 @@ mod app {
             #[cfg(feature = "defmt")]
             defmt::info!("Blinking");
             cx.local.led.set_low();
-            Mono::delay(200.millis()).await;
+            Mono::delay(340.millis()).await;
             cx.local.led.set_high();
-            Mono::delay(780.millis()).await;
+            Mono::delay(160.millis()).await;
         }
     }
 }

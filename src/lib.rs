@@ -33,6 +33,7 @@ pub struct DfuCtl;
 impl DfuCtl {
     /// If this value is found at the address 0x2000_0000 (beginning of RAM),
     /// bootloader will enter DFU mode. See memory.x linker script.
+    /// THIS VALUE MUST NOT BE CHANGED.
     const KEY_STAY_IN_BOOT: u32 = 0xb0d42b89;
 
     // see memory.x linker script
