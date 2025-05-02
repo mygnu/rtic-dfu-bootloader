@@ -47,7 +47,7 @@ mod app {
         const ERASE_TIME_MS: u32 = 50;
         const FULL_ERASE_TIME_MS: u32 = 50 * 64;
 
-        const MEM_INFO_STRING: &'static str = "@Flash/0x08000000/16*1Ka,48*1Kg";
+        const MEM_INFO_STRING: &'static str = "@Flash/0x08004000/48*1Kg";
         const HAS_DOWNLOAD: bool = true;
         const HAS_UPLOAD: bool = true;
 
