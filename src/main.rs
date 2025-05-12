@@ -8,8 +8,7 @@ mod app {
     #[cfg(feature = "defmt")]
     use rtic_dfu_bootloader::feature_defmt as _;
     use rtic_dfu_bootloader::{
-        BOOTLOADER_SIZE_BYTES, DfuCtl, FLASH_SIZE, FLASH_SIZE_BYTES, USB_PID,
-        USB_VID,
+        BOOTLOADER_SIZE_BYTES, DfuCtl, FLASH_SIZE, FLASH_SIZE_BYTES, USB_PID, USB_VID,
     };
     use rtic_monotonics::systick::prelude::*;
     use stm32f1xx_hal::flash;
@@ -17,9 +16,7 @@ mod app {
     use stm32f1xx_hal::pac::{GPIOB, RCC};
     use stm32f1xx_hal::prelude::*;
     use stm32f1xx_hal::usb::{Peripheral, UsbBus, UsbBusType};
-    use usb_device::device::{
-        StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid,
-    };
+    use usb_device::device::{StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid};
     use usbd_dfu::{DFUClass, DFUManifestationError, DFUMemError, DFUMemIO};
 
     pub struct STM32Mem {
@@ -56,8 +53,7 @@ mod app {
             address: u32,
             length: usize,
         ) -> core::result::Result<&[u8], DFUMemError> {
-            let flash_top: u32 =
-                Self::INITIAL_ADDRESS_POINTER + FLASH_SIZE_BYTES as u32;
+            let flash_top: u32 = Self::INITIAL_ADDRESS_POINTER + FLASH_SIZE_BYTES as u32;
 
             if address < Self::INITIAL_ADDRESS_POINTER {
                 return Err(DFUMemError::Address);
@@ -68,17 +64,12 @@ mod app {
 
             let len = length.min((flash_top - address) as usize);
 
-            let mem = unsafe {
-                &*core::ptr::slice_from_raw_parts(address as *const u8, len)
-            };
+            let mem = unsafe { &*core::ptr::slice_from_raw_parts(address as *const u8, len) };
 
             Ok(mem)
         }
 
-        fn erase(
-            &mut self,
-            address: u32,
-        ) -> core::result::Result<(), DFUMemError> {
+        fn erase(&mut self, address: u32) -> core::result::Result<(), DFUMemError> {
             if address < flash::FLASH_START {
                 return Err(DFUMemError::Address);
             }
@@ -107,10 +98,7 @@ mod app {
             Err(DFUMemError::Unknown)
         }
 
-        fn store_write_buffer(
-            &mut self,
-            src: &[u8],
-        ) -> core::result::Result<(), ()> {
+        fn store_write_buffer(&mut self, src: &[u8]) -> core::result::Result<(), ()> {
             self.buffer[..src.len()].copy_from_slice(src);
             Ok(())
         }
@@ -143,12 +131,8 @@ mod app {
                 Err(flash::Error::ProgrammingError) => Err(DFUMemError::Prog),
                 Err(flash::Error::LengthNotMultiple2) => Err(DFUMemError::Prog),
                 Err(flash::Error::LengthTooLong) => Err(DFUMemError::Prog),
-                Err(flash::Error::AddressLargerThanFlash) => {
-                    Err(DFUMemError::Address)
-                }
-                Err(flash::Error::AddressMisaligned) => {
-                    Err(DFUMemError::Address)
-                }
+                Err(flash::Error::AddressLargerThanFlash) => Err(DFUMemError::Address),
+                Err(flash::Error::AddressMisaligned) => Err(DFUMemError::Address),
                 Err(flash::Error::WriteError) => Err(DFUMemError::Write),
                 Err(flash::Error::VerifyError) => Err(DFUMemError::Verify),
                 Err(_) => Err(DFUMemError::Unknown),
@@ -205,8 +189,7 @@ mod app {
             cortex_m::asm::delay(100);
 
             // check BOOT1, PB2 state
-            let not_enforced =
-                unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
+            let not_enforced = unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
             #[cfg(feature = "defmt")]
             defmt::info!("BOOT1 pin is set to {}", !not_enforced);
 
@@ -282,8 +265,7 @@ mod app {
 
         let stm32mem = STM32Mem::new(flash);
 
-        let usb_dfu =
-            DFUClass::new(&cx.local.usb_bus.as_ref().unwrap(), stm32mem);
+        let usb_dfu = DFUClass::new(&cx.local.usb_bus.as_ref().unwrap(), stm32mem);
 
         read_serial(&mut cx.local.serial_number);
 
@@ -293,9 +275,7 @@ mod app {
         )
         .strings(&[StringDescriptors::default()
             .product("BrakeBright Bootloader")
-            .serial_number(unsafe {
-                core::str::from_utf8_unchecked(cx.local.serial_number)
-            })])
+            .serial_number(unsafe { core::str::from_utf8_unchecked(cx.local.serial_number) })])
         .unwrap_or_else(|_| panic!())
         .device_release(0x0200)
         .self_powered(false)

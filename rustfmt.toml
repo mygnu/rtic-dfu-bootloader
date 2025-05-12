@@ -1,5 +1,5 @@
 # use `cargo +nightly fmt`
-max_width = 80
+max_width = 100
 edition = "2024"
 
 wrap_comments = true

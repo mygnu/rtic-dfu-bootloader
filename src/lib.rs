@@ -11,10 +11,7 @@ mod feature_defmt {
     pub use {defmt_rtt as _, panic_probe as _};
 
     static COUNT: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
-    defmt::timestamp!(
-        "{=usize}",
-        COUNT.fetch_add(1, atomic::Ordering::Relaxed)
-    );
+    defmt::timestamp!("{=usize}", COUNT.fetch_add(1, atomic::Ordering::Relaxed));
 }
 
 /// Board flash configuration. MEM_INFO_STRING below must also be changed.
