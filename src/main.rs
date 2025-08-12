@@ -32,7 +32,7 @@ mod app {
             }
         }
 
-        pub fn writer(&mut self) -> flash::FlashWriter {
+        pub fn writer(&mut self) -> flash::FlashWriter<'_> {
             self.flash.writer(flash::SectorSize::Sz1K, FLASH_SIZE)
         }
     }
