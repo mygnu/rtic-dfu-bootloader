@@ -11,11 +11,11 @@ mod app {
         BOOTLOADER_SIZE_BYTES, DfuCtl, FLASH_SIZE, FLASH_SIZE_BYTES, USB_PID, USB_VID,
     };
     use rtic_monotonics::systick::prelude::*;
-    use stm32f1xx_hal::flash;
     use stm32f1xx_hal::gpio::{Output, PA8, PinState, PushPull};
     use stm32f1xx_hal::pac::{GPIOB, RCC};
     use stm32f1xx_hal::prelude::*;
     use stm32f1xx_hal::usb::{Peripheral, UsbBus, UsbBusType};
+    use stm32f1xx_hal::{flash, rcc};
     use usb_device::device::{StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid};
     use usbd_dfu::{DFUClass, DFUManifestationError, DFUMemError, DFUMemIO};
 
@@ -175,21 +175,21 @@ mod app {
         fn is_not_high() -> bool {
             unsafe {
                 // enable PWR, AFIO, GPIOB
-                (*RCC::ptr()).apb1enr.modify(|_, w| w.pwren().set_bit());
+                (*RCC::ptr()).apb1enr().modify(|_, w| w.pwren().set_bit());
                 (*RCC::ptr())
-                    .apb2enr
+                    .apb2enr()
                     .modify(|_, w| w.afioen().set_bit().iopben().set_bit());
 
                 // P2 - Input, Floating
                 (*GPIOB::ptr())
-                    .crl
+                    .crl()
                     .modify(|_, w| w.mode2().input().cnf2().open_drain());
             }
 
             cortex_m::asm::delay(100);
 
             // check BOOT1, PB2 state
-            let not_enforced = unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
+            let not_enforced = unsafe { (*GPIOB::ptr()).idr().read().idr2().bit_is_clear() };
             #[cfg(feature = "defmt")]
             defmt::info!("BOOT1 pin is set to {}", !not_enforced);
 
@@ -197,9 +197,9 @@ mod app {
             // check if DFU mode must be enabled to a
             // default values before starting main firmware.
             unsafe {
-                (*GPIOB::ptr()).crl.reset();
-                (*RCC::ptr()).apb1enr.reset();
-                (*RCC::ptr()).apb2enr.reset();
+                (*GPIOB::ptr()).crl().reset();
+                (*RCC::ptr()).apb1enr().reset();
+                (*RCC::ptr()).apb2enr().reset();
             }
             not_enforced
         }
@@ -225,24 +225,21 @@ mod app {
 
         let dp = cx.device;
         let mut flash = dp.FLASH.constrain();
-        let rcc = dp.RCC.constrain();
-
-        // Setup clocks
-        let _clocks = rcc
-            .cfgr
-            .use_hse(16.MHz())
-            .hclk(72.MHz())
-            .pclk1(36.MHz())
-            .pclk2(72.MHz())
-            .sysclk(48.MHz())
-            .freeze(&mut flash.acr);
+        let mut rcc = dp.RCC.freeze(
+            rcc::Config::hse(16.MHz())
+                .hclk(72.MHz())
+                .pclk1(36.MHz())
+                .pclk2(72.MHz())
+                .sysclk(48.MHz()),
+            &mut flash.acr,
+        );
 
         // assert!(clocks.usbclk_valid());
 
         // Initialize the systick interrupt
         Mono::start(cx.core.SYST, 72_000_000); // default STM32F301 clock-rate is 36MHz
 
-        let mut gpioa = dp.GPIOA.split();
+        let mut gpioa = dp.GPIOA.split(&mut rcc);
         // let led = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
 
         let led = gpioa
