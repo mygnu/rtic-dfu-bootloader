@@ -613,8 +613,3 @@ checksum = "de437e2a6208b014ab52972a27e59b33fa2920d3e00fe05026167a1c509d19cc"
 dependencies = [
  "vcell",
 ]
-
-[[patch.unused]]
-name = "stm32-usbd"
-version = "0.6.0"
-source = "git+https://github.com/stm32-rs/stm32-usbd.git?rev=ca23b91d347438d322359f9ff7bc9d8e592f82b8#ca23b91d347438d322359f9ff7bc9d8e592f82b8"
