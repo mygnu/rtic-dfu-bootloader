@@ -12,11 +12,11 @@ mod app {
         USB_VID,
     };
     use rtic_monotonics::systick::prelude::*;
-    use stm32f1xx_hal::flash;
     use stm32f1xx_hal::gpio::{Output, PC13, PinState, PushPull};
     use stm32f1xx_hal::pac::{GPIOB, RCC};
     use stm32f1xx_hal::prelude::*;
     use stm32f1xx_hal::usb::{Peripheral, UsbBus, UsbBusType};
+    use stm32f1xx_hal::{flash, rcc};
     use usb_device::device::{
         StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid,
     };
@@ -35,7 +35,7 @@ mod app {
             }
         }
 
-        pub fn writer(&mut self) -> flash::FlashWriter {
+        pub fn writer(&mut self) -> flash::FlashWriter<'_> {
             self.flash.writer(flash::SectorSize::Sz1K, FLASH_SIZE)
         }
     }
@@ -47,7 +47,7 @@ mod app {
         const ERASE_TIME_MS: u32 = 50;
         const FULL_ERASE_TIME_MS: u32 = 50 * 64;
 
-        const MEM_INFO_STRING: &'static str = "@Flash/0x08000000/16*1Ka,48*1Kg";
+        const MEM_INFO_STRING: &'static str = "@Flash/0x08004000/48*1Kg";
         const HAS_DOWNLOAD: bool = true;
         const HAS_UPLOAD: bool = true;
 
@@ -191,14 +191,14 @@ mod app {
         fn is_not_high() -> bool {
             unsafe {
                 // enable PWR, AFIO, GPIOB
-                (*RCC::ptr()).apb1enr.modify(|_, w| w.pwren().set_bit());
+                (*RCC::ptr()).apb1enr().modify(|_, w| w.pwren().set_bit());
                 (*RCC::ptr())
-                    .apb2enr
+                    .apb2enr()
                     .modify(|_, w| w.afioen().set_bit().iopben().set_bit());
 
                 // P2 - Input, Floating
                 (*GPIOB::ptr())
-                    .crl
+                    .crl()
                     .modify(|_, w| w.mode2().input().cnf2().open_drain());
             }
 
@@ -206,7 +206,7 @@ mod app {
 
             // check BOOT1, PB2 state
             let not_enforced =
-                unsafe { (*GPIOB::ptr()).idr.read().idr2().bit_is_clear() };
+                unsafe { (*GPIOB::ptr()).idr().read().idr2().bit_is_clear() };
             #[cfg(feature = "defmt")]
             defmt::info!("BOOT1 pin is set to {}", !not_enforced);
 
@@ -214,9 +214,9 @@ mod app {
             // check if DFU mode must be enabled to a
             // default values before starting main firmware.
             unsafe {
-                (*GPIOB::ptr()).crl.reset();
-                (*RCC::ptr()).apb1enr.reset();
-                (*RCC::ptr()).apb2enr.reset();
+                (*GPIOB::ptr()).crl().reset();
+                (*RCC::ptr()).apb1enr().reset();
+                (*RCC::ptr()).apb2enr().reset();
             }
             not_enforced
         }
@@ -229,7 +229,6 @@ mod app {
 
     #[local]
     struct Local {
-        // led: PA8<Output<PushPull>>,
         led: PC13<Output<PushPull>>,
         usb_device: UsbDevice<'static, UsbBusType>,
         usb_dfu: DFUClass<UsbBusType, STM32Mem>,
@@ -243,25 +242,23 @@ mod app {
 
         let dp = cx.device;
         let mut flash = dp.FLASH.constrain();
-        let rcc = dp.RCC.constrain();
+        let mut rcc = dp.RCC.freeze(
+            rcc::Config::hse(8.MHz())
+                .hclk(72.MHz())
+                .pclk1(36.MHz())
+                .pclk2(72.MHz())
+                .sysclk(48.MHz()),
+            &mut flash.acr,
+        );
 
-        // Setup clocks
-        let _clocks = rcc
-            .cfgr
-            .use_hse(8.MHz())
-            .hclk(72.MHz())
-            .pclk1(36.MHz())
-            .pclk2(72.MHz())
-            .sysclk(72.MHz())
-            .freeze(&mut flash.acr);
+        // assert!(clocks.usbclk_valid());
 
         // Initialize the systick interrupt
         Mono::start(cx.core.SYST, 72_000_000); // default STM32F301 clock-rate is 36MHz
 
-        let mut gpioa = dp.GPIOA.split();
-        // let led = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
+        let mut gpioa = dp.GPIOA.split(&mut rcc);
 
-        let mut gpioc = dp.GPIOC.split();
+        let mut gpioc = dp.GPIOC.split(&mut rcc);
         let led = gpioc
             .pc13
             .into_push_pull_output_with_state(&mut gpioc.crh, PinState::High);
@@ -292,8 +289,7 @@ mod app {
             UsbVidPid(USB_VID, USB_PID),
         )
         .strings(&[StringDescriptors::default()
-            .manufacturer("Hematite Engineering")
-            .product("USB DFU Bootloader")
+            .product("Bootloader")
             .serial_number(unsafe {
                 core::str::from_utf8_unchecked(cx.local.serial_number)
             })])
@@ -330,9 +326,9 @@ mod app {
             #[cfg(feature = "defmt")]
             defmt::info!("Blinking");
             cx.local.led.set_low();
-            Mono::delay(200.millis()).await;
+            Mono::delay(340.millis()).await;
             cx.local.led.set_high();
-            Mono::delay(780.millis()).await;
+            Mono::delay(160.millis()).await;
         }
     }
 }
